@@ -235,8 +235,13 @@ declare
 begin
   new.atualizado_em := now();
 
+  -- Rascunho/despublicado: publicado_em fica como histórico ("já foi ao ar"),
+  -- o que impede o slug de mudar depois que o link circulou. A cota só
+  -- conta publicado = true, então despublicar libera a vaga.
   if not new.publicado then
-    new.publicado_em := null;
+    if tg_op = 'UPDATE' then
+      new.publicado_em := old.publicado_em;
+    end if;
     return new;
   end if;
 
@@ -246,8 +251,8 @@ begin
     return new;
   end if;
 
-  -- está sendo publicado agora
-  new.publicado_em := coalesce(new.publicado_em, now());
+  -- está sendo publicado agora (insert com data explícita só no seed)
+  new.publicado_em := case when tg_op = 'INSERT' then coalesce(new.publicado_em, now()) else now() end;
   semana := public.inicio_semana(new.publicado_em);
 
   perform pg_advisory_xact_lock(hashtext('cota_semanal_posts'));
